@@ -1,0 +1,42 @@
+name: 인스타 자동 업로드
+
+on:
+  schedule:
+    # 매일 밤 9시 (한국 시간) = UTC 12:00
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "check = 연결 확인 / dry_run = 올릴 게시물 확인 / publish = 실제 업로드"
+        type: choice
+        options: [check, dry_run, publish]
+        default: check
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 업로드
+        env:
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          IMAGE_BASE_URL: https://raw.githubusercontent.com/${{ github.repository }}/main/out
+          MODE: ${{ github.event.inputs.mode || 'publish' }}
+        run: node publish.mjs
+
+      - name: 올린 기록 저장
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add published.json
+          git diff --cached --quiet || git commit -m "업로드 기록: $(date +%F)"
+          git push
